@@ -4,14 +4,24 @@
 // I2C_SDA / I2C_SCL 已由 esp32s3box 的 pins_arduino.h 定义为 8 / 18
 
 constexpr uint8_t REG_WHO_AM_I    = 0x75;
+// 电源管理寄存器地址
 constexpr uint8_t REG_PWR_MGMT0   = 0x1F;
+// 加速度配置寄存器地址
 constexpr uint8_t REG_ACCEL_CFG0  = 0x21;
+// 加速度数据起始地址
 constexpr uint8_t REG_ACCEL_DATA  = 0x0B;
-
+// 陀螺仪配置寄存器地址
+constexpr uint8_t REG_GYRO_CONFIG0 = 0x20;
+// 陀螺仪配置 250DPS 100HZ
+constexpr uint8_t GYRO_CONFIG_250DPS_100HZ = 0x69;
+// 加速度配置 2G 100HZ
+constexpr uint8_t ACCEL_CONFIG_2G_100HZ = 0x69;
+// ICM42607 传感器 ID
 constexpr uint8_t ICM42607_ID = 0x60;
-
+// ICM42607 地址
 uint8_t imuAddress = 0;
 
+// 写入寄存器
 bool writeRegister8(
     uint8_t deviceAddress,
     uint8_t registerAddress,
@@ -106,30 +116,37 @@ uint8_t findICM42607()
     return 0;
 }
 
-bool initAccelerometer()
+bool initSixAxis()
 {
-    /*
-     * ACCEL_CONFIG0 = 0x69
-     *
-     * bit 6:5 = 11：量程 ±2g
-     * bit 3:0 = 1001：输出速率 100Hz
-     */
-    if (!writeRegister8(imuAddress, REG_ACCEL_CFG0, 0x69)) {
+    // 加速度：±2g、100Hz
+    if (!writeRegister8(
+            imuAddress,
+            REG_ACCEL_CFG0,
+            ACCEL_CONFIG_2G_100HZ)) {
         return false;
     }
 
-    /*
-     * PWR_MGMT0 = 0x03
-     *
-     * GYRO_MODE  = 00：陀螺仪关闭
-     * ACCEL_MODE = 11：加速度计低噪声模式
-     */
-    if (!writeRegister8(imuAddress, REG_PWR_MGMT0, 0x03)) {
+    // 陀螺仪：±250dps、100Hz
+    if (!writeRegister8(
+            imuAddress,
+            REG_GYRO_CONFIG0,
+            GYRO_CONFIG_250DPS_100HZ)) {
         return false;
     }
 
-    // 数据手册规定启动后需要等待有效数据
-    delay(20);
+    // 0x0F：
+    // GYRO_MODE  = 11 → 陀螺仪低噪声模式
+    // ACCEL_MODE = 11 → 加速度计低噪声模式
+    if (!writeRegister8(
+            imuAddress,
+            REG_PWR_MGMT0,
+            0x0F)) {
+        return false;
+    }
+
+    // 陀螺仪启动时间比加速度计长，约 30ms
+    // 使用 50ms 留出余量
+    delay(50);
 
     return true;
 }
@@ -171,33 +188,39 @@ void setup()
         imuAddress
     );
 
-    if (!initAccelerometer()) {
-        Serial.println("加速度计初始化失败");
+    if (!initSixAxis()) {
+        Serial.println("六轴传感器初始化失败");
+    
         while (true) {
             delay(1000);
         }
     }
 
-    Serial.println("加速度计初始化成功");
+    Serial.println("六轴传感器初始化成功");
 }
 
 void loop()
 {
-    uint8_t data[6];
+    uint8_t data[12];
 
     if (!readRegisters(
             imuAddress,
             REG_ACCEL_DATA,
             data,
             sizeof(data))) {
-        Serial.println("读取加速度失败");
+        Serial.println("读取六轴传感器数据失败");
         delay(100);
         return;
     }
-
+    // 0x0B～0x0C：加速度计 XYZ 
     int16_t rawX = makeInt16(data[0], data[1]);
     int16_t rawY = makeInt16(data[2], data[3]);
     int16_t rawZ = makeInt16(data[4], data[5]);
+
+    // 0x11～0x16：陀螺仪 XYZ 
+    int16_t rawGyroX = makeInt16(data[6], data[7]); 
+    int16_t rawGyroY = makeInt16(data[8], data[9]); 
+    int16_t rawGyroZ = makeInt16(data[10], data[11]);
 
     /*
      * 当前配置是 ±2g。
@@ -206,12 +229,22 @@ void loop()
     float accelX = rawX / 16384.0f;
     float accelY = rawY / 16384.0f;
     float accelZ = rawZ / 16384.0f;
+    /*
+     * 当前配置是 ±250dps。
+     * 灵敏度为 131 LSB/dps。
+     */
+    float gyroX = rawGyroX / 131.0f;
+    float gyroY = rawGyroY / 131.0f;
+    float gyroZ = rawGyroZ / 131.0f;
 
     Serial.printf(
-        "X=%7.3f g  Y=%7.3f g  Z=%7.3f g\n",
+        "X=%7.3f g  Y=%7.3f g  Z=%7.3f g  X=%7.3f dps  Y=%7.3f dps  Z=%7.3f dps\n",
         accelX,
         accelY,
-        accelZ
+        accelZ,
+        gyroX,
+        gyroY,
+        gyroZ
     );
 
     delay(100);
