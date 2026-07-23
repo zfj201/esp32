@@ -118,7 +118,7 @@ uint8_t findICM42607()
 
 bool initSixAxis()
 {
-    // 加速度：±2g、100Hz
+    // 写入加速度配置：±2g、100Hz
     if (!writeRegister8(
             imuAddress,
             REG_ACCEL_CFG0,
@@ -126,7 +126,7 @@ bool initSixAxis()
         return false;
     }
 
-    // 陀螺仪：±250dps、100Hz
+    // 写入陀螺仪配置：±250dps、100Hz
     if (!writeRegister8(
             imuAddress,
             REG_GYRO_CONFIG0,
@@ -134,7 +134,7 @@ bool initSixAxis()
         return false;
     }
 
-    // 0x0F：
+    // 0x0F：电源管理开启陀螺仪、加速度计
     // GYRO_MODE  = 11 → 陀螺仪低噪声模式
     // ACCEL_MODE = 11 → 加速度计低噪声模式
     if (!writeRegister8(
