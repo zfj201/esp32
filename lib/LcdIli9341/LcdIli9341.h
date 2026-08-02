@@ -184,3 +184,14 @@ void lcdDrawRGB565Image(
     uint16_t height,
     const uint16_t* data
 );
+
+// 把 RAM 中已经按“高字节、低字节”排列的 RGB565 数据连续写入 LCD。
+// 主要供 LVGL 的 RGB565_SWAPPED 部分刷新缓冲区使用。
+// 当前接口要求整个矩形位于屏幕内，不执行源数据裁剪。
+void lcdDrawRGB565Bytes(
+    int32_t x,
+    int32_t y,
+    uint16_t width,
+    uint16_t height,
+    const uint8_t* data
+);

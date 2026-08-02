@@ -652,3 +652,40 @@ void lcdDrawRGB565Image(
 
     lcdEndWrite();
 }
+
+void lcdDrawRGB565Bytes(
+    int32_t x,
+    int32_t y,
+    uint16_t width,
+    uint16_t height,
+    const uint8_t* data)
+{
+    if (data == nullptr || width == 0 || height == 0)
+    {
+        return;
+    }
+
+    const int32_t right = x + static_cast<int32_t>(width);
+    const int32_t bottom = y + static_cast<int32_t>(height);
+
+    if (x < 0 || y < 0 || right > LCD_WIDTH || bottom > LCD_HEIGHT)
+    {
+        return;
+    }
+
+    const uint32_t byteCount =
+        static_cast<uint32_t>(width) *
+        static_cast<uint32_t>(height) *
+        2U;
+
+    lcdBeginWrite();
+    lcdSetAddressWindowRaw(
+        static_cast<uint16_t>(x),
+        static_cast<uint16_t>(y),
+        static_cast<uint16_t>(right - 1),
+        static_cast<uint16_t>(bottom - 1)
+    );
+
+    SPI.writeBytes(data, byteCount);
+    lcdEndWrite();
+}
