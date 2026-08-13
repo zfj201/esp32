@@ -1,8 +1,32 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <driver/ledc.h>
 
 static const int SDA_PIN = 8;
 static const int SCL_PIN = 18;
+static const int XCLK_PIN = 39;
+static const uint32_t XCLK_FREQ_HZ = 16000000;
+
+bool startCameraXclk() {
+  ledc_timer_config_t timer = {};
+  timer.speed_mode = LEDC_LOW_SPEED_MODE;
+  timer.duty_resolution = LEDC_TIMER_1_BIT;
+  timer.timer_num = LEDC_TIMER_2;
+  timer.freq_hz = XCLK_FREQ_HZ;
+  timer.clk_cfg = LEDC_AUTO_CLK;
+  if (ledc_timer_config(&timer) != ESP_OK) {
+    return false;
+  }
+
+  ledc_channel_config_t channel = {};
+  channel.gpio_num = XCLK_PIN;
+  channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  channel.channel = LEDC_CHANNEL_0;
+  channel.timer_sel = LEDC_TIMER_2;
+  channel.duty = 1;
+  channel.hpoint = 0;
+  return ledc_channel_config(&channel) == ESP_OK;
+}
 
 static void scanI2C() {
   uint8_t found = 0;
@@ -107,6 +131,11 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("01_I2C-scan");
+  if (!startCameraXclk()) {
+    Serial.println("Camera XCLK start failed");
+  } else {
+    delay(20);
+  }
   if (Wire.begin(SDA_PIN, SCL_PIN)) {
     Serial.println("I2C initialized");
   } else {
